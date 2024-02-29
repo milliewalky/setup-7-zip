@@ -20,5 +20,5 @@ runs:
       run: move 7-Zip\Files\7-Zip\* 7-Zip
 
     - name: add 7-zip to path
-      shell: pwsh
+      shell: powershell
       run: echo "${{ runner.temp }}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
