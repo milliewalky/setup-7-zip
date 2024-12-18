@@ -7,13 +7,74 @@ on:
       - master
 
 jobs:
-  build:
+  test_setup_7z_on_windows:
     runs-on: windows-latest
 
     steps:
     - name: setup 7-Zip
-      uses: milliewalky/setup-7-zip@v1
+      uses: milliewalky/setup-7-zip@v2
 
-    - name: check 7-Zip capabilities
+    - name: check 7z
       shell: cmd
+      run: 7z -h
+
+  test_setup_7z_on_linux:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: setup 7-Zip
+      uses: milliewalky/setup-7-zip@v2
+
+    - name: check 7z
+      shell: bash
+      run: 7z -h
+
+  test_setup_7z_on_macos:
+    runs-on: macos-latest
+  
+    steps:
+    - name: setup 7-Zip
+      uses: milliewalky/setup-7-zip@v2
+  
+    - name: check 7z
+      shell: bash
+      run: 7z -h
+
+  test_setup_7z_on_windows_for_specific_version:
+    runs-on: windows-latest
+
+    steps:
+    - name: setup 7-Zip
+      uses: milliewalky/setup-7-zip@v2
+      with:
+        tag: 24.07
+
+    - name: check 7z
+      shell: cmd
+      run: 7z -h
+
+  test_setup_7z_on_linux_for_specific_version:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: setup 7-Zip
+      uses: milliewalky/setup-7-zip@v2
+      with:
+        tag: 24.07
+
+    - name: check 7z
+      shell: bash
+      run: 7z -h
+
+  test_setup_7z_on_macos_for_specific_version:
+    runs-on: macos-latest
+  
+    steps:
+    - name: setup 7-Zip
+      uses: milliewalky/setup-7-zip@v2
+      with:
+        tag: 24.07
+  
+    - name: check 7z
+      shell: bash
       run: 7z -h
