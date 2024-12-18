@@ -1,24 +1,175 @@
 name: setup 7-Zip action
 description: download and unpack 7-Zip for gh actions
-    
+inputs:
+  token:
+    description: github personal access token
+    default: ${{ github.token }}
+
+  tag:
+    description: release tag
+    default: latest
+
 runs:
   using: composite
   steps:
+    # impl for Windows operating systems
     - name: download 7-Zip
-      shell: cmd
+      id: win32_download_7z
+      if: runner.os == 'Windows'
+      shell: powershell
       working-directory: ${{ runner.temp }}
-      run: curl -L -o 7z2401-x64.msi https://www.7-zip.org/a/7z2401-x64.msi
+      run: |
+        # resolve arch
+        $arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
 
+        if ($arch -eq "amd64")
+        {
+          $arch = "x64"
+        }
+
+        # stub resolve ext
+        $ext = "exe"
+
+        # build a var for testing jq response
+        $name_wildcard_ext = "7z*.$ext"
+        $name_wildcard_arch_ext = "7z*-$arch.$ext"
+
+        # build headers
+        $headers = @{
+          "Authorization" = "Bearer $env:token"
+          "Content-Type"  = "application/json"
+        }
+
+        # build uri
+        $uri = if ($env:tag -eq "latest")
+        {
+          "https://api.github.com/repos/ip7z/7zip/releases/latest"
+        }
+        else
+        {
+          "https://api.github.com/repos/ip7z/7zip/releases/tags/$env:tag"
+        }
+
+        # download 7-Zip
+        $response = Invoke-RestMethod -Uri $uri -Headers $headers
+        $assets = $response.assets | Where-Object { $_.name -like $name_wildcard_ext }
+
+        $obj = $assets | Where-Object { $_.name -like $name_wildcard_arch_ext }
+        if (-not $obj)
+        {
+          $obj = $assets | Where-Object { $_.name -notlike $name_wildcard_arch_ext }
+        }
+
+        Invoke-WebRequest -Uri $obj.browser_download_url -OutFile $obj.name -Headers $headers
+
+        "exe=$($obj.name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      env:
+        token: ${{ inputs.token }}
+        tag: ${{ inputs.tag }}
+
+    # TODO(mmacieje): `&` in powershell case does not do it here, unforunately
     - name: unpack 7-Zip
+      if: runner.os == 'Windows'
       shell: cmd
       working-directory: ${{ runner.temp }}
-      run: msiexec /a 7z2401-x64.msi /qb TARGETDIR=%cd%\7-Zip
+      run: call ${{ steps.win32_download_7z.outputs.exe }} /S /D=${{ runner.temp }}\7-Zip
 
-    - name: rearrange files
-      shell: cmd
-      working-directory: ${{ runner.temp }}
-      run: move 7-Zip\Files\7-Zip\* 7-Zip
-
-    - name: add 7-zip to path
+    - name: add 7-Zip to path
+      if: runner.os == 'Windows'
       shell: powershell
       run: echo "${{ runner.temp }}\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    # impl for Unix-like operating systems
+    - name: download 7-Zip
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+      shell: bash
+      working-directory: ${{ runner.temp }}
+      run: |
+        set -e
+
+        # resolve os
+        if [ "${{ runner.os }}" = "Linux" ]; then
+          os="linux"
+        elif [ "${{ runner.os }}" = "macOS" ]; then
+          os="mac"
+        fi
+
+        # resolve arch
+        arch=$(uname -m)
+        case "$arch" in
+          x86_64) arch="x64" ;;
+          aarch64) arch="arm64" ;;
+          armv7l|armhf) arch="arm" ;;
+          i686|i386) arch="x86" ;;
+        esac
+
+        # if macos, 7-Zip file is just 7zXXXX-mac.tar.xz without arch suffix
+        # if linux, it's 7zXXXX-linux-$arch.tar.xz
+        if [ "$os" = "mac" ]; then
+          name_version_os_opt_arch_ext="^7z[0-9]+-$os\\\\.tar\\\\.xz$"
+        else
+          name_version_os_opt_arch_ext="^7z[0-9]+-$os-$arch\\\\.tar\\\\.xz$"
+        fi
+
+        # build headers
+        headers=(-H "Authorization: Bearer $token" -H "Content-Type: application/json")
+
+        # build uri
+        if [ "$tag" = "latest" ]; then
+          uri="https://api.github.com/repos/ip7z/7zip/releases/latest"
+        else
+          uri="https://api.github.com/repos/ip7z/7zip/releases/tags/$tag"
+        fi
+
+        # fetch release info
+        if command -v curl >/dev/null 2>&1; then
+          response=$(curl -s "${headers[@]}" "$uri")
+        elif command -v wget >/dev/null 2>&1; then
+          # wget doesn't directly allow multiple headers simply, but we can do:
+          # (if needed, but curl should be available by default on github runners)
+          response=$(wget -qO- --header="Authorization: Bearer $token" --header="Content-Type: application/json" "$uri")
+        else
+          echo "neither curl nor wget is available." >&2
+          exit 1
+        fi
+
+        # extract download url using jq
+        url=$(echo $response | jq -r ".assets[] | select(.name | test(\"$name_version_os_opt_arch_ext\")) | .browser_download_url")
+
+        echo $url
+
+        if [ -z "$url" ]; then
+          echo "no matching 7-Zip archive found for pattern: $name_version_os_opt_arch_ext" >&2
+          exit 1
+        fi
+
+        # download the archive
+        if command -v curl >/dev/null 2>&1; then
+          curl -L "${headers[@]}" "$url" -o "7z.tar.xz"
+        else
+          # fallback to wget if needed
+          wget --header="Authorization: Bearer $token" --header="Content-Type: application/json" -O "7z.tar.xz" "$url"
+        fi
+      env:
+        token: ${{ inputs.token }}
+        tag: ${{ inputs.tag }}
+
+    - name: unpack 7-Zip
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+      shell: bash
+      working-directory: ${{ runner.temp }}
+      run: |
+        set -e
+
+        mkdir -p 7-Zip
+        tar -xf 7z.tar.xz -C ${{ runner.temp }}/7-Zip
+
+        pushd 7-Zip
+        cp 7zz 7z
+        popd
+
+    - name: add 7-Zip to path
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+      shell: bash
+      run: echo "${{ runner.temp }}/7-Zip" >> $GITHUB_PATH

@@ -7,13 +7,74 @@ on:
       - master
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
 
     steps:
     - name: setup 7-Zip
-      uses: milliewalky/setup-7-zip@v1
+      uses: milliewalky/setup-7-zip@v2
 
-    - name: check 7-Zip capabilities
+    - name: check 7z
       shell: cmd
+      run: 7z -h
+
+  linux:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: setup 7-Zip
+      uses: milliewalky/setup-7-zip@v2
+
+    - name: check 7z
+      shell: bash
+      run: 7z -h
+
+  macos:
+    runs-on: macos-latest
+
+    steps:
+    - name: setup 7-Zip
+      uses: milliewalky/setup-7-zip@v2
+
+    - name: check 7z
+      shell: bash
+      run: 7z -h
+
+  windows_tag:
+    runs-on: windows-latest
+
+    steps:
+    - name: setup 7-Zip
+      uses: milliewalky/setup-7-zip@v2
+      with:
+        tag: 24.07
+
+    - name: check 7z
+      shell: cmd
+      run: 7z -h
+
+  linux_tag:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: setup 7-Zip
+      uses: milliewalky/setup-7-zip@v2
+      with:
+        tag: 24.07
+
+    - name: check 7z
+      shell: bash
+      run: 7z -h
+
+  macos_tag:
+    runs-on: macos-latest
+
+    steps:
+    - name: setup 7-Zip
+      uses: milliewalky/setup-7-zip@v2
+      with:
+        tag: 24.07
+
+    - name: check 7z
+      shell: bash
       run: 7z -h

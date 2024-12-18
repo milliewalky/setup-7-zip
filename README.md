@@ -8,7 +8,11 @@ This action downloads, unpacks, and configures 7-Zip for use in GitHub Actions w
 
 <!-- start usage -->
 ```yaml
-- uses: milliewalky/setup-7-zip@v1
+- uses: milliewalky/setup-7-zip@v2
+  with:
+    # 7-Zip release tag from its GitHub Releases page e.g. 24.07.
+    # default: latest
+    tag: ""
 ```
 <!-- end usage -->
 
